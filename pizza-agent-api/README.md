@@ -1,58 +1,114 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Pizza Agent API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel backend for the [pizza voice ordering agent](../PLAN.md). Exposes a single endpoint that a [Retell AI](https://docs.retellai.com/) voice agent calls (via a custom function tool) mid-call to save a confirmed pizza order.
 
-## About Laravel
+## Stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Laravel, PHP 8.3+
+- SQLite (a single `database/database.sqlite` file — no database server to run)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Requirements
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP 8.3+ with the `sqlite3` extension
+- Composer
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Local Setup
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+php artisan migrate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Set a value for `RETELL_API_SECRET` in `.env` — this is the shared secret the `/api/orders` endpoint expects on every request (see [Authentication](#authentication)).
 
-## Contributing
+## Running Locally
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+php artisan serve
+```
 
-## Code of Conduct
+The API is now available at `http://127.0.0.1:8000`.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## API
 
-## Security Vulnerabilities
+### `POST /api/orders`
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Creates an order. This is the endpoint a Retell custom function tool calls once the caller confirms their order.
 
-## License
+**Headers**
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Header | Value |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-Api-Key` | must match `RETELL_API_SECRET` from `.env`, or the request is rejected with `401` |
+
+**Body**
+
+```json
+{
+  "customer_name": "Jane Doe",
+  "phone": "5551234567",
+  "fulfillment_type": "delivery",
+  "address": "123 Main St",
+  "items": [
+    { "name": "Pepperoni", "size": "Large", "qty": 1, "price": 14.99 }
+  ],
+  "total": 14.99,
+  "retell_call_id": "call_123"
+}
+```
+
+`address` is required when `fulfillment_type` is `delivery`, optional for `pickup`. `retell_call_id` is optional.
+
+**Response** — `201 Created`
+
+```json
+{ "confirmation_number": 1 }
+```
+
+Validation failures return `422` with Laravel's standard `{ "errors": { ... } }` shape; a missing/incorrect `X-Api-Key` returns `401`.
+
+### Try it with curl
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/api/orders \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: <value of RETELL_API_SECRET>" \
+  -d '{
+    "customer_name": "Jane Doe",
+    "phone": "5551234567",
+    "fulfillment_type": "pickup",
+    "items": [{"name": "Margherita", "size": "Medium", "qty": 1, "price": 12.50}],
+    "total": 12.50
+  }'
+```
+
+Inspect the stored row directly:
+
+```bash
+sqlite3 database/database.sqlite "SELECT * FROM orders;"
+```
+
+## Testing
+
+```bash
+php artisan test
+```
+
+`tests/Feature/OrderControllerTest.php` covers order creation, the API key check, and validation (including the delivery-requires-address rule). Tests run against an in-memory SQLite database (`phpunit.xml`), so they don't touch `database/database.sqlite`.
+
+## Project Layout
+
+| Path | Purpose |
+|---|---|
+| `app/Http/Controllers/OrderController.php` | Validates and stores an order, returns the confirmation number |
+| `app/Http/Requests/StoreOrderRequest.php` | Validation rules for the order payload |
+| `app/Http/Middleware/VerifyRetellSecret.php` | Checks the `X-Api-Key` header (aliased as `retell.secret` in `bootstrap/app.php`) |
+| `app/Models/Order.php` | `Order` model — `items` cast to array (JSON column), `total` cast to decimal |
+| `database/migrations/..._create_orders_table.php` | The single `orders` table (see `PLAN.md` §4.2 for why it's one table) |
+| `routes/api.php` | Registers `POST /api/orders` |
+
+See [`../PLAN.md`](../PLAN.md) for the full project plan, including the Retell agent setup and EC2 deployment steps that build on this API.
