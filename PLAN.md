@@ -2,9 +2,9 @@
 
 ## Status
 
-**§4 (Laravel Application) is implemented and verified — §8 step 1 done.** Lives in `pizza-agent-api/` (see its [README](pizza-agent-api/README.md) for setup/test instructions). Runs on SQLite, `POST /api/orders` validates and stores an order behind a shared-secret header, 4 feature tests pass, and it's been smoke-tested end-to-end with curl against a real SQLite-backed dev server (valid order → `201` + confirmation number; wrong API key → `401`).
+**§4 (Laravel Application) and §5 (EC2 deployment) are done and verified — §8 steps 1–2 complete.** Lives in `pizza-agent-api/` (see its [README](pizza-agent-api/README.md) for local setup/test instructions). Deployed and live at **`https://34-244-32-152.sslip.io`** (Let's Encrypt cert via Certbot, auto-renews). Verified from the public internet: valid order → `201` + confirmation number; wrong `X-Api-Key` → `401`; rows confirmed in the deployed `database.sqlite`.
 
-**Next: §8 step 2 — deploy `pizza-agent-api/` to an EC2 free-tier instance (§5) and confirm the HTTPS endpoint is reachable from the public internet.** §3 (Retell agent) has not been started yet.
+**Next: §8 step 3 — build the Retell agent (§3) and point its `create_order` custom function at `https://34-244-32-152.sslip.io/api/orders`.**
 
 ## 1. Goal
 
@@ -52,7 +52,7 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 - [x] Middleware: check the shared-secret header from §3 on this route. — `app/Http/Middleware/VerifyRetellSecret.php`, aliased `retell.secret`.
 
 ### 4.4 Security (minimum viable)
-- [ ] Route sits behind HTTPS (required — see §5) — pending EC2 deploy.
+- [x] Route sits behind HTTPS (required — see §5) — live at `https://34-244-32-152.sslip.io`.
 - [x] Shared-secret header check (skip full HMAC signature verification for the demo) — `X-Api-Key` header checked against `RETELL_API_SECRET`.
 - [x] Basic Laravel validation on input; that's sufficient for a test build.
 
@@ -60,12 +60,12 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 
 ## 5. AWS EC2 Free-Tier Setup
 
-- [ ] Launch one `t2.micro`/`t3.micro`, Ubuntu 22.04/24.04.
-- [ ] Security group: allow 22 (SSH, your IP only), 80, 443.
-- [ ] Install PHP 8.3 + extensions (including `php-sqlite3`), Nginx, Composer directly on the box — no separate database server to install, configure, or tune (SQLite avoids the RAM-tuning concern a MySQL server would raise on a 1GB instance).
-- [ ] `git clone` the app, `composer install`, ensure `database/database.sqlite` exists and is writable by the web server user (`touch database/database.sqlite`), `.env` set to `DB_CONNECTION=sqlite`, `php artisan migrate --force`.
-- [ ] Point a domain/subdomain at the instance's public IP, get a free cert with Certbot — **required**, Retell needs real HTTPS to reach the webhook.
-- [ ] That's it for infra — skip Elastic IP, backups, monitoring, queue workers for a demo; the instance's default public IP is fine as long as you don't reboot mid-demo.
+- [x] Launch one `t2.micro`/`t3.micro`, Ubuntu 22.04/24.04. — `t3.micro`, Ubuntu 24.04, `eu-west-1a`, instance `i-0b2ed14484cb7a678`, public IP `34.244.32.152`.
+- [x] Security group: allow 22 (SSH, your IP only), 80, 443. — `sg-06f3f1f24acb94663`.
+- [x] Install PHP 8.3 + extensions (including `php-sqlite3`), Nginx, Composer directly on the box — no separate database server to install, configure, or tune (SQLite avoids the RAM-tuning concern a MySQL server would raise on a 1GB instance). — installed **PHP 8.4** instead via the `ondrej/php` PPA: Ubuntu 24.04's default PHP 8.3 was too old for the Laravel/Symfony versions pinned in `composer.lock` (they require PHP ≥8.4.1).
+- [x] `git clone` the app, `composer install`, ensure `database/database.sqlite` exists and is writable by the web server user (`touch database/database.sqlite`), `.env` set to `DB_CONNECTION=sqlite`, `php artisan migrate --force`. — deployed to `/var/www/pizza-agent/pizza-agent-api` (not under `/home/ubuntu`, whose `750` permissions blocked Nginx's `www-data` user from traversing it).
+- [x] Point a domain/subdomain at the instance's public IP, get a free cert with Certbot — **required**, Retell needs real HTTPS to reach the webhook. — used `34-244-32-152.sslip.io` (free IP-in-hostname DNS, no registrar needed) since Let's Encrypt's policy explicitly forbids issuing certs for AWS's own `*.compute.amazonaws.com` hostnames. Cert live, auto-renews.
+- [x] That's it for infra — skip Elastic IP, backups, monitoring, queue workers for a demo; the instance's default public IP is fine as long as you don't reboot mid-demo. — no Elastic IP attached, so the `sslip.io` hostname (and the `.env` `APP_URL`) will need updating if the instance is ever stopped/restarted.
 
 ## 6. End-to-End Flow to Demo
 
@@ -86,6 +86,6 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 ## 8. Suggested Build Order
 
 1. ~~Laravel `orders` migration + controller, tested locally with curl/Postman.~~ **Done.**
-2. **Next →** Deploy to EC2, confirm HTTPS endpoint is reachable from the public internet.
-3. Build the Retell agent + `create_order` tool pointed at the deployed URL; test in the simulator.
+2. ~~Deploy to EC2, confirm HTTPS endpoint is reachable from the public internet.~~ **Done.** Live at `https://34-244-32-152.sslip.io`.
+3. **Next →** Build the Retell agent + `create_order` tool pointed at `https://34-244-32-152.sslip.io/api/orders`; test in the simulator.
 4. Place one real test call end-to-end, verify the row lands in the SQLite file.
