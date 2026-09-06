@@ -1,5 +1,11 @@
 # Pizza Voice Ordering Agent — Simple Test/Demo Plan
 
+## Status
+
+**§4 (Laravel Application) is implemented and verified — §8 step 1 done.** Lives in `pizza-agent-api/` (see its [README](pizza-agent-api/README.md) for setup/test instructions). Runs on SQLite, `POST /api/orders` validates and stores an order behind a shared-secret header, 4 feature tests pass, and it's been smoke-tested end-to-end with curl against a real SQLite-backed dev server (valid order → `201` + confirmation number; wrong API key → `401`).
+
+**Next: §8 step 2 — deploy `pizza-agent-api/` to an EC2 free-tier instance (§5) and confirm the HTTPS endpoint is reachable from the public internet.** §3 (Retell agent) has not been started yet.
+
 ## 1. Goal
 
 Smallest working version of: a voice agent ([Retell AI](https://docs.retellai.com/)) that takes a pizza order and saves it via a Laravel + SQLite API on a single AWS EC2 free-tier instance. Scoped to be buildable and demo-able quickly, not production-hardened.
@@ -32,23 +38,25 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 ## 4. Laravel Application
 
 ### 4.1 Scaffolding
-- [ ] `composer create-project laravel/laravel pizza-agent-api`
-- [ ] Configure `.env` for SQLite (default Laravel setup — no server to configure).
+- [x] `composer create-project laravel/laravel pizza-agent-api`
+- [x] Configure `.env` for SQLite (default Laravel setup — no server to configure).
 
 ### 4.2 Database — one table
-- [ ] `orders`: id, customer_name, phone, fulfillment_type (pickup/delivery), address (nullable), items (JSON — array of `{name, size, qty, price}`), total, retell_call_id (nullable), created_at.
-- [ ] Skip separate `menu_items`/`customers`/`order_items`/`call_logs` tables for this pass — one table with a JSON `items` column is enough to prove the flow works.
+- [x] `orders`: id, customer_name, phone, fulfillment_type (pickup/delivery), address (nullable), items (JSON — array of `{name, size, qty, price}`), total, retell_call_id (nullable), created_at. — `database/migrations/..._create_orders_table.php`, `app/Models/Order.php`.
+- [x] Skip separate `menu_items`/`customers`/`order_items`/`call_logs` tables for this pass — one table with a JSON `items` column is enough to prove the flow works.
 
 ### 4.3 Routes / Controller
-- [ ] `routes/api.php`: `POST /api/orders` → `OrderController@store`.
-- [ ] `FormRequest` validation: required name/phone, items non-empty, total is numeric.
-- [ ] Controller: validate → create the row → return `{ "confirmation_number": <id> }` as JSON (fast — no external calls, the caller is waiting on the line).
-- [ ] Middleware: check the shared-secret header from §3 on this route.
+- [x] `routes/api.php`: `POST /api/orders` → `OrderController@store`.
+- [x] `FormRequest` validation: required name/phone, items non-empty, total is numeric. — `app/Http/Requests/StoreOrderRequest.php`.
+- [x] Controller: validate → create the row → return `{ "confirmation_number": <id> }` as JSON (fast — no external calls, the caller is waiting on the line). — `app/Http/Controllers/OrderController.php`.
+- [x] Middleware: check the shared-secret header from §3 on this route. — `app/Http/Middleware/VerifyRetellSecret.php`, aliased `retell.secret`.
 
 ### 4.4 Security (minimum viable)
-- [ ] Route sits behind HTTPS (required — see §5).
-- [ ] Shared-secret header check (skip full HMAC signature verification for the demo).
-- [ ] Basic Laravel validation on input; that's sufficient for a test build.
+- [ ] Route sits behind HTTPS (required — see §5) — pending EC2 deploy.
+- [x] Shared-secret header check (skip full HMAC signature verification for the demo) — `X-Api-Key` header checked against `RETELL_API_SECRET`.
+- [x] Basic Laravel validation on input; that's sufficient for a test build.
+
+**Tests:** `tests/Feature/OrderControllerTest.php` — 4 passing (create, wrong API key → 401, delivery without address → 422, missing required fields → 422). Run with `php artisan test`.
 
 ## 5. AWS EC2 Free-Tier Setup
 
@@ -77,7 +85,7 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 
 ## 8. Suggested Build Order
 
-1. Laravel `orders` migration + controller, tested locally with curl/Postman.
-2. Deploy to EC2, confirm HTTPS endpoint is reachable from the public internet.
+1. ~~Laravel `orders` migration + controller, tested locally with curl/Postman.~~ **Done.**
+2. **Next →** Deploy to EC2, confirm HTTPS endpoint is reachable from the public internet.
 3. Build the Retell agent + `create_order` tool pointed at the deployed URL; test in the simulator.
 4. Place one real test call end-to-end, verify the row lands in the SQLite file.
