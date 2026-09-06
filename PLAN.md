@@ -2,7 +2,7 @@
 
 ## 1. Goal
 
-Smallest working version of: a voice agent ([Retell AI](https://docs.retellai.com/)) that takes a pizza order and saves it via a Laravel + MySQL API on a single AWS EC2 free-tier instance. Scoped to be buildable and demo-able quickly, not production-hardened.
+Smallest working version of: a voice agent ([Retell AI](https://docs.retellai.com/)) that takes a pizza order and saves it via a Laravel + SQLite API on a single AWS EC2 free-tier instance. Scoped to be buildable and demo-able quickly, not production-hardened.
 
 ## 2. Architecture (one integration point)
 
@@ -11,7 +11,7 @@ Smallest working version of: a voice agent ([Retell AI](https://docs.retellai.co
                   │
                   │  one custom function: create_order
                   ▼
-           POST https://your-domain/api/orders   ──►  Laravel (EC2)  ──►  MySQL (same EC2 box)
+           POST https://your-domain/api/orders   ──►  Laravel (EC2)  ──►  SQLite file (same EC2 box)
                   │
                   ◄── JSON { confirmation_number } spoken back to caller
 ```
@@ -33,7 +33,7 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 
 ### 4.1 Scaffolding
 - [ ] `composer create-project laravel/laravel pizza-agent-api`
-- [ ] Configure `.env` for MySQL.
+- [ ] Configure `.env` for SQLite (default Laravel setup — no server to configure).
 
 ### 4.2 Database — one table
 - [ ] `orders`: id, customer_name, phone, fulfillment_type (pickup/delivery), address (nullable), items (JSON — array of `{name, size, qty, price}`), total, retell_call_id (nullable), created_at.
@@ -54,8 +54,8 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 
 - [ ] Launch one `t2.micro`/`t3.micro`, Ubuntu 22.04/24.04.
 - [ ] Security group: allow 22 (SSH, your IP only), 80, 443.
-- [ ] Install PHP 8.3 + extensions, Nginx, MySQL, Composer directly on the box (co-locate MySQL — simplest for a single free-tier instance).
-- [ ] `git clone` the app, `composer install`, `.env` with DB creds, `php artisan migrate --force`.
+- [ ] Install PHP 8.3 + extensions (including `php-sqlite3`), Nginx, Composer directly on the box — no separate database server to install, configure, or tune (SQLite avoids the RAM-tuning concern a MySQL server would raise on a 1GB instance).
+- [ ] `git clone` the app, `composer install`, ensure `database/database.sqlite` exists and is writable by the web server user (`touch database/database.sqlite`), `.env` set to `DB_CONNECTION=sqlite`, `php artisan migrate --force`.
 - [ ] Point a domain/subdomain at the instance's public IP, get a free cert with Certbot — **required**, Retell needs real HTTPS to reach the webhook.
 - [ ] That's it for infra — skip Elastic IP, backups, monitoring, queue workers for a demo; the instance's default public IP is fine as long as you don't reboot mid-demo.
 
@@ -65,7 +65,7 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 2. Agent recites the (prompt-baked) menu, takes the order, confirms it + total out loud.
 3. On confirmation, agent calls `create_order` → Laravel validates + inserts a row → returns a confirmation number.
 4. Agent reads the confirmation number back, call ends.
-5. Check the `orders` table on the EC2 MySQL instance — the row is there.
+5. Check the `orders` table in the EC2 instance's `database.sqlite` file — the row is there.
 
 ## 7. Stretch Goals (only if time remains)
 
@@ -80,4 +80,4 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 1. Laravel `orders` migration + controller, tested locally with curl/Postman.
 2. Deploy to EC2, confirm HTTPS endpoint is reachable from the public internet.
 3. Build the Retell agent + `create_order` tool pointed at the deployed URL; test in the simulator.
-4. Place one real test call end-to-end, verify the row lands in MySQL.
+4. Place one real test call end-to-end, verify the row lands in the SQLite file.
