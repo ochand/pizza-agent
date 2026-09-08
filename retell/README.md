@@ -134,11 +134,13 @@ The web simulator can pass while a phone call is silent. Diagnose from
 
 ---
 
-## Done criteria for step 3
+## Done criteria for steps 3–4
 
 - [x] Single-prompt agent exists with the prompt from `agent-prompt.md`.
 - [x] `create_order` function configured, "args only" ON, `X-Api-Key` header set.
 - [x] Simulator: full order round-trips → `201` + confirmation number, row in the live `database.sqlite`.
-- [x] Phone number attached, inbound agent set; a real call reaches the agent (it replies once the caller speaks).
-- [ ] Begin Message set + agent **Re-published** so the agent greets first (fixes the silent-call issue — see §5).
-- [ ] Full order placed over a **real phone call**, row confirmed in `database.sqlite` (= `../PLAN.md` §8 step 4).
+- [x] Begin Message set + agent **Published** so it greets first on a real call (see §5).
+- [x] Phone number attached, inbound agent set; a real call reaches the agent and it greets first.
+- [x] Full order placed over a **real phone call**, row confirmed in `database.sqlite` (= `../PLAN.md` §8 step 4).
+
+**Step 3 + step 4 complete — the agent is live and taking real phone orders.** Optional next: `../PLAN.md` §7 stretch goals.
