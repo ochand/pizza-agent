@@ -4,7 +4,9 @@
 
 **§4 (Laravel Application) and §5 (EC2 deployment) are done and verified — §8 steps 1–2 complete.** Lives in `pizza-agent-api/` (see its [README](pizza-agent-api/README.md) for local setup/test instructions). Deployed and live at **`https://34-244-32-152.sslip.io`** (Let's Encrypt cert via Certbot, auto-renews). Verified from the public internet: valid order → `201` + confirmation number; wrong `X-Api-Key` → `401`; rows confirmed in the deployed `database.sqlite`.
 
-**Next: §8 step 3 — build the Retell agent (§3) and point its `create_order` custom function at `https://34-244-32-152.sslip.io/api/orders`.**
+**§8 step 3 nearly done.** Retell single-prompt agent (`Tony's Pizza — order taker`, `agent_04be53…11d`) is built from the spec in [`retell/`](retell/README.md) — system prompt with baked-in menu ([`retell/agent-prompt.md`](retell/agent-prompt.md)) and the `create_order` custom function ([`retell/create_order.tool.json`](retell/create_order.tool.json)) with **"Payload: args only"** ON + `X-Api-Key` header, pointed at `https://34-244-32-152.sslip.io/api/orders`. **Verified: simulator order round-trips → `201` + confirmation number, row lands in the live EC2 `database.sqlite`.** Phone number attached; a real inbound call reaches the agent and it converses. **One fix outstanding:** the agent had no Begin Message so it stayed silent until the caller spoke (dead-air on pickup) — set the Begin Message + **re-publish** (see `retell/README.md` §1.4 / §5), then it greets first.
+
+**Next: set Begin Message + republish, then §8 step 4 (one real phone call end-to-end, confirm the row).**
 
 ## 1. Goal
 
@@ -26,14 +28,16 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 
 ## 3. Retell AI Agent Setup
 
-- [ ] Create a Retell account + API key.
-- [ ] Use a **Single Prompt Agent** (skip Conversation Flow — more setup than needed for a demo).
-- [ ] Write one system prompt that includes the menu directly (e.g. 3 pizzas, 2 sizes, a few toppings, fixed prices) — no need for a `get_menu` endpoint, the LLM just recites what's in the prompt.
-- [ ] Prompt rules: don't invent items/prices, always read back the full order + total before finishing, collect name, phone, and pickup vs. delivery (+ address if delivery).
-- [ ] Define **one custom function tool**: `create_order` → `POST /api/orders`, called once the caller confirms.
-- [ ] Add a shared-secret header (e.g. `X-API-KEY`) to the tool config so Laravel can reject unauthenticated calls.
-- [ ] Test in Retell's built-in simulator until a full order round-trips correctly.
-- [ ] Attach a test phone number to place a real call.
+Spec + step-by-step in [`retell/README.md`](retell/README.md). Repo-side artifacts are done; the rest is dashboard work needing a Retell account.
+
+- [x] Create a Retell account + API key.
+- [x] Use a **Single Prompt Agent** (skip Conversation Flow — more setup than needed for a demo). — built: `Tony's Pizza — order taker`, `agent_04be53…11d`.
+- [x] Write one system prompt that includes the menu directly (3 pizzas, 2 sizes, 6 extra toppings, fixed prices) — no `get_menu` endpoint, the LLM recites the prompt. — [`retell/agent-prompt.md`](retell/agent-prompt.md).
+- [x] Prompt rules: don't invent items/prices, always read back the full order + total before finishing, collect name, phone, and pickup vs. delivery (+ address if delivery). — in the prompt.
+- [x] Define **one custom function tool**: `create_order` → `POST /api/orders`, called once the caller confirms. — [`retell/create_order.tool.json`](retell/create_order.tool.json). Must run with **"Payload: args only"** ON so the body matches `/api/orders`.
+- [x] Add a shared-secret header (`X-Api-Key`) to the tool config so Laravel can reject unauthenticated calls. — documented; value comes from the server's `RETELL_API_SECRET`.
+- [x] Build the above in the dashboard, then test in Retell's built-in simulator until a full order round-trips correctly. — done: simulator order → `201` + confirmation number, row in the live `database.sqlite`.
+- [~] Attach a test phone number to place a real call. — number attached, inbound call reaches the agent; pending Begin Message + republish so it greets first (`retell/README.md` §5), then the real end-to-end order call (§8 step 4).
 
 ## 4. Laravel Application
 
@@ -87,5 +91,5 @@ Just one webhook to build: the agent calls it once, when the caller confirms the
 
 1. ~~Laravel `orders` migration + controller, tested locally with curl/Postman.~~ **Done.**
 2. ~~Deploy to EC2, confirm HTTPS endpoint is reachable from the public internet.~~ **Done.** Live at `https://34-244-32-152.sslip.io`.
-3. **Next →** Build the Retell agent + `create_order` tool pointed at `https://34-244-32-152.sslip.io/api/orders`; test in the simulator.
+3. **In progress →** Build the Retell agent + `create_order` tool pointed at `https://34-244-32-152.sslip.io/api/orders`; test in the simulator. Spec committed under [`retell/`](retell/README.md); dashboard build + simulator run remain.
 4. Place one real test call end-to-end, verify the row lands in the SQLite file.

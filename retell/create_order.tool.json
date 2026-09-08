@@ -1,0 +1,82 @@
+{
+  "_comment": "Parameter schema for the Retell custom function `create_order`. With 'Payload: args only' enabled on the function, Retell POSTs exactly this object (no {name, call, args} wrapper) to the URL below, which is the shape POST /api/orders expects. Paste the `parameters` object into the function's JSON editor; set the other fields from the table in README.md.",
+
+  "name": "create_order",
+  "description": "Save the caller's confirmed pizza order. Call this exactly once, only after the caller has explicitly said yes to the full order read-back. Returns { confirmation_number }.",
+  "url": "https://34-244-32-152.sslip.io/api/orders",
+  "method": "POST",
+  "payload_args_only": true,
+  "timeout_ms": 15000,
+  "max_retry": 0,
+  "speak_during_execution": true,
+  "speak_during_execution_message": "Okay, placing that order now.",
+  "speak_after_execution": true,
+
+  "headers": {
+    "X-Api-Key": "<value of RETELL_API_SECRET on the server>"
+  },
+
+  "query_params": {
+    "retell_call_id": "{{call_id}}"
+  },
+
+  "response_variables": {
+    "confirmation_number": "confirmation_number"
+  },
+
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "customer_name": {
+        "type": "string",
+        "description": "The caller's full name for the order."
+      },
+      "phone": {
+        "type": "string",
+        "description": "The caller's callback phone number, digits only, no spaces or dashes."
+      },
+      "fulfillment_type": {
+        "type": "string",
+        "enum": ["pickup", "delivery"],
+        "description": "Whether the caller is collecting the order or wants it delivered."
+      },
+      "address": {
+        "type": "string",
+        "description": "Full delivery street address. Include ONLY when fulfillment_type is 'delivery'; omit entirely for pickup."
+      },
+      "items": {
+        "type": "array",
+        "description": "One entry per distinct pizza on the order.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Menu pizza name (Margherita, Pepperoni, or Veggie Supreme). Append any extra toppings in parentheses, e.g. 'Pepperoni (extra cheese, mushrooms)'."
+            },
+            "size": {
+              "type": "string",
+              "enum": ["Medium", "Large"],
+              "description": "Pizza size."
+            },
+            "qty": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "How many of this exact pizza (same size, same toppings)."
+            },
+            "price": {
+              "type": "number",
+              "description": "Per-unit price in dollars for ONE of this pizza at this size, including its extra toppings (size price + 1.50 per extra topping)."
+            }
+          },
+          "required": ["name", "size", "qty", "price"]
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Order total in dollars: the sum of price * qty across every item. No tax, no delivery fee."
+      }
+    },
+    "required": ["customer_name", "phone", "fulfillment_type", "items", "total"]
+  }
+}
